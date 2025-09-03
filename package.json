@@ -1,0 +1,23 @@
+{
+  "name": "traveltrove",
+  "version": "1.0.0",
+  "description": "Professional grade travel planning and exploration platform",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && npm run dev",
+    "client": "cd frontend && npm start",
+    "install-deps": "cd backend && npm install && cd ../frontend && npm install"
+  },
+  "keywords": [
+    "travel",
+    "MERN",
+    "destination",
+    "itinerary"
+  ],
+  "author": "TravelTrove Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
