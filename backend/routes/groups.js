@@ -237,6 +237,103 @@ router.post('/:id/posts', authenticateToken, [
   }
 });
 
+// Send message to group
+router.post('/:id/messages', authenticateToken, [
+  body('content').trim().isLength({ min: 1, max: 1000 }),
+  body('messageType').optional().isIn(['text', 'image', 'system'])
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const group = await Group.findById(req.params.id);
+
+    if (!group || !group.isActive) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Check if user is a member
+    const isMember = group.members.some(member => 
+      member.user.toString() === req.user._id.toString()
+    );
+
+    if (!isMember) {
+      return res.status(403).json({ error: 'Must be a group member to send messages' });
+    }
+
+    const message = {
+      sender: req.user._id,
+      content: req.body.content,
+      messageType: req.body.messageType || 'text',
+      createdAt: new Date()
+    };
+
+    group.messages.push(message);
+    await group.save();
+
+    await group.populate('messages.sender', 'firstName lastName');
+
+    res.status(201).json({
+      message: 'Message sent successfully',
+      chatMessage: group.messages[group.messages.length - 1]
+    });
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// Get group messages
+router.get('/:id/messages', authenticateToken, async (req, res) => {
+  try {
+    const { page = 1, limit = 50 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const group = await Group.findById(req.params.id)
+      .populate('messages.sender', 'firstName lastName')
+      .select('messages members isPublic');
+
+    if (!group || !group.isActive) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Check if user can view messages
+    const isMember = group.members.some(member => 
+      member.user.toString() === req.user._id.toString()
+    );
+
+    if (!group.isPublic && !isMember) {
+      return res.status(403).json({ error: 'Access denied to private group messages' });
+    }
+
+    // Get messages with pagination (newest first)
+    const messages = group.messages
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(skip, skip + parseInt(limit))
+      .reverse(); // Reverse to show oldest first in the returned batch
+
+    res.json({ 
+      messages,
+      pagination: {
+        currentPage: parseInt(page),
+        totalMessages: group.messages.length,
+        hasMore: skip + parseInt(limit) < group.messages.length
+      }
+    });
+  } catch (error) {
+    console.error('Fetch messages error:', error);
+    if (error.name === 'CastError') {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
 // Get group details
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
@@ -245,7 +342,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
       .populate('members.user', 'firstName lastName')
       .populate('destination', 'title location')
       .populate('plannedTrip', 'title duration')
-      .populate('posts.author', 'firstName lastName');
+      .populate('posts.author', 'firstName lastName')
+      .populate('messages.sender', 'firstName lastName');
 
     if (!group || !group.isActive) {
       return res.status(404).json({ error: 'Group not found' });

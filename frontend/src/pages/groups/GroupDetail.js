@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -21,6 +21,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Paper,
+  IconButton,
+  InputAdornment,
 } from '@mui/material';
 import {
   Group,
@@ -30,6 +33,7 @@ import {
   Send,
   ExitToApp,
   ContentCopy,
+  Chat as ChatIcon,
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
@@ -46,12 +50,32 @@ const GroupDetail = () => {
   
   const [newPost, setNewPost] = useState('');
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [activeTab, setActiveTab] = useState('posts');
+  const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
 
   const { data: group, isLoading, error } = useQuery(
     ['group', id],
     async () => {
       const response = await axios.get(`/api/v1/groups/${id}`);
       return response.data.group;
+    }
+  );
+
+  const isMember = group?.members?.some(member => member.user._id === user?._id);
+  const isCreator = group?.creator._id === user?._id;
+
+  const { data: messagesData, refetch: refetchMessages } = useQuery(
+    ['groupMessages', id],
+    async () => {
+      const response = await axios.get(`/api/v1/groups/${id}/messages`);
+      return response.data;
+    },
+    {
+      enabled: !!group && isMember,
+      refetchInterval: 3000 // Refetch every 3 seconds for real-time feel
     }
   );
 
@@ -63,6 +87,18 @@ const GroupDetail = () => {
       onSuccess: () => {
         setNewPost('');
         queryClient.invalidateQueries(['group', id]);
+      }
+    }
+  );
+
+  const sendMessageMutation = useMutation(
+    async (content) => {
+      await axios.post(`/api/v1/groups/${id}/messages`, { content });
+    },
+    {
+      onSuccess: () => {
+        setNewMessage('');
+        refetchMessages();
       }
     }
   );
@@ -85,6 +121,24 @@ const GroupDetail = () => {
     }
   };
 
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if (newMessage.trim()) {
+      sendMessageMutation.mutate(newMessage.trim());
+    }
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (messagesData?.messages) {
+      setMessages(messagesData.messages);
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [messagesData]);
+
   const handleLeaveGroup = () => {
     leaveGroupMutation.mutate();
     setLeaveDialogOpen(false);
@@ -95,9 +149,6 @@ const GroupDetail = () => {
       navigator.clipboard.writeText(group.inviteCode);
     }
   };
-
-  const isMember = group?.members?.some(member => member.user._id === user?._id);
-  const isCreator = group?.creator._id === user?._id;
 
   if (isLoading) {
     return <LoadingSpinner message="Loading group details..." />;
@@ -160,8 +211,28 @@ const GroupDetail = () => {
       <Grid container spacing={4}>
         {/* Main Content */}
         <Grid item xs={12} md={8}>
+          {/* Tab Navigation */}
+          {isMember && (
+            <Box sx={{ mb: 3 }}>
+              <Button
+                variant={activeTab === 'posts' ? 'contained' : 'outlined'}
+                onClick={() => setActiveTab('posts')}
+                sx={{ mr: 2 }}
+              >
+                Group Posts
+              </Button>
+              <Button
+                variant={activeTab === 'chat' ? 'contained' : 'outlined'}
+                onClick={() => setActiveTab('chat')}
+                startIcon={<ChatIcon />}
+              >
+                Group Chat
+              </Button>
+            </Box>
+          )}
           {/* Group Posts */}
-          <Card sx={{ mb: 4 }}>
+          {(!isMember || activeTab === 'posts') && (
+            <Card sx={{ mb: 4 }}>
             <CardContent>
               <Typography variant="h5" sx={{ mb: 3, fontWeight: 'bold' }}>
                 Group Posts
@@ -229,6 +300,105 @@ const GroupDetail = () => {
               )}
             </CardContent>
           </Card>
+          )}
+
+          {/* Group Chat */}
+          {isMember && activeTab === 'chat' && (
+            <Card sx={{ mb: 4, height: '600px', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 0 }}>
+                <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                    Group Chat
+                  </Typography>
+                </Box>
+
+                {/* Messages Container */}
+                <Box 
+                  ref={chatContainerRef}
+                  sx={{ 
+                    flexGrow: 1, 
+                    overflowY: 'auto', 
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2
+                  }}
+                >
+                  {messages.length > 0 ? (
+                    messages.map((message) => {
+                      const isOwnMessage = message.sender._id === user?._id;
+                      return (
+                        <Box
+                          key={message._id}
+                          sx={{
+                            display: 'flex',
+                            justifyContent: isOwnMessage ? 'flex-end' : 'flex-start',
+                            mb: 1
+                          }}
+                        >
+                          <Paper
+                            elevation={1}
+                            sx={{
+                              p: 2,
+                              maxWidth: '70%',
+                              backgroundColor: isOwnMessage ? 'primary.main' : 'grey.100',
+                              color: isOwnMessage ? 'primary.contrastText' : 'text.primary',
+                              borderRadius: isOwnMessage ? '18px 18px 4px 18px' : '18px 18px 18px 4px'
+                            }}
+                          >
+                            {!isOwnMessage && (
+                              <Typography variant="caption" sx={{ fontWeight: 'bold', display: 'block', mb: 0.5 }}>
+                                {message.sender.firstName} {message.sender.lastName}
+                              </Typography>
+                            )}
+                            <Typography variant="body1">
+                              {message.content}
+                            </Typography>
+                            <Typography variant="caption" sx={{ display: 'block', mt: 0.5, opacity: 0.7 }}>
+                              {format(new Date(message.createdAt), 'h:mm a')}
+                            </Typography>
+                          </Paper>
+                        </Box>
+                      );
+                    })
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <Typography variant="body1" color="text.secondary">
+                        No messages yet. Start the conversation!
+                      </Typography>
+                    </Box>
+                  )}
+                  <div ref={messagesEndRef} />
+                </Box>
+
+                {/* Message Input */}
+                <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+                  <Box component="form" onSubmit={handleSendMessage} sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      fullWidth
+                      placeholder="Type a message..."
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      disabled={sendMessageMutation.isLoading}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              type="submit"
+                              disabled={!newMessage.trim() || sendMessageMutation.isLoading}
+                              color="primary"
+                            >
+                              <Send />
+                            </IconButton>
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
         </Grid>
 
         {/* Sidebar */}

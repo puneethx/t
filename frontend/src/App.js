@@ -13,6 +13,7 @@ import DestinationDetail from './pages/destinations/DestinationDetail';
 import Itineraries from './pages/itineraries/Itineraries';
 import ItineraryDetail from './pages/itineraries/ItineraryDetail';
 import CreateItinerary from './pages/itineraries/CreateItinerary';
+import EditItinerary from './pages/itineraries/EditItinerary';
 import Profile from './pages/user/Profile';
 import Favorites from './pages/user/Favorites';
 import Groups from './pages/groups/Groups';
@@ -69,6 +70,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <CreateItinerary />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/itineraries/:id/edit"
+            element={
+              <ProtectedRoute>
+                <EditItinerary />
               </ProtectedRoute>
             }
           />

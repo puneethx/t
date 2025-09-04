@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Paper,
@@ -23,27 +23,34 @@ import {
   Divider,
 } from '@mui/material';
 import { Add, Delete, CalendarToday } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { useMutation, useQuery } from 'react-query';
 import { format, addDays } from 'date-fns';
 import axios from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 
-const CreateItinerary = () => {
+const EditItinerary = () => {
+  const { id } = useParams();
   const [activeStep, setActiveStep] = useState(0);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user, isAuthenticated } = useAuth();
-  
-  const destinationId = location.state?.destinationId;
+  const { user } = useAuth();
 
-  const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
+  const { data: itinerary, isLoading: itineraryLoading } = useQuery(
+    ['itinerary', id],
+    async () => {
+      const response = await axios.get(`/api/v1/trip-itineraries/${id}`);
+      return response.data;
+    }
+  );
+
+  const { control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm({
     defaultValues: {
       title: '',
       description: '',
-      destination: destinationId || '',
+      destination: '',
       duration: { days: 3, nights: 2 },
       startDate: format(new Date(), 'yyyy-MM-dd'),
       endDate: format(addDays(new Date(), 2), 'yyyy-MM-dd'),
@@ -65,6 +72,27 @@ const CreateItinerary = () => {
   const watchedDuration = watch('duration');
   const watchedStartDate = watch('startDate');
   const watchedDestination = watch('destination');
+
+  // Populate form with existing data
+  useEffect(() => {
+    if (itinerary) {
+      reset({
+        title: itinerary.title || '',
+        description: itinerary.description || '',
+        destination: itinerary.destination?._id || '',
+        duration: itinerary.duration || { days: 3, nights: 2 },
+        startDate: itinerary.startDate ? format(new Date(itinerary.startDate), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+        endDate: itinerary.endDate ? format(new Date(itinerary.endDate), 'yyyy-MM-dd') : format(addDays(new Date(), 2), 'yyyy-MM-dd'),
+        groupSize: itinerary.groupSize || 1,
+        travelStyle: itinerary.travelStyle || 'adventure',
+        budget: itinerary.budget || { total: 1000 },
+        isPublic: itinerary.isPublic || false,
+        dailyPlan: itinerary.dailyPlan || [
+          { day: 1, activities: [{ time: '09:00', activity: '', location: '' }] }
+        ]
+      });
+    }
+  }, [itinerary, reset]);
 
   const { data: destinations, isLoading: destinationsLoading } = useQuery(
     'destinations-list',
@@ -91,56 +119,36 @@ const CreateItinerary = () => {
     }
   );
 
-  const createItineraryMutation = useMutation(
+  const updateItineraryMutation = useMutation(
     async (data) => {
-      try {
-        // If user is not authenticated, create as guest itinerary
-        const endpoint = isAuthenticated ? '/api/v1/trip-itineraries' : '/api/v1/trip-itineraries/guest';
-        const response = await axios.post(endpoint, data);
-        return response.data;
-      } catch (error) {
-        console.error('Itinerary creation error:', error);
-        throw error;
-      }
+      const response = await axios.put(`/api/v1/trip-itineraries/${id}`, data);
+      return response.data;
     },
     {
-      onSuccess: (data) => {
-        try {
-          if (isAuthenticated) {
-            navigate(`/itineraries/${data.itinerary._id}`);
-          } else {
-            // For guest users, show success message and redirect to login
-            alert('Itinerary created successfully! Please login to save and manage your itineraries.');
-            navigate('/login');
-          }
-        } catch (error) {
-          console.error('Navigation error:', error);
-          setError('Itinerary created but navigation failed');
-        }
+      onSuccess: () => {
+        navigate(`/itineraries/${id}`);
       },
       onError: (error) => {
-        console.error('Mutation error:', error);
-        setError(error.response?.data?.error || 'Failed to create itinerary');
+        console.error('Update error:', error);
+        setError(error.response?.data?.error || 'Failed to update itinerary');
       }
     }
   );
 
-  const steps = ['Basic Info', 'Daily Plan', 'Review & Create'];
+  const steps = ['Basic Info', 'Daily Plan', 'Review & Update'];
 
   const updateDailyPlan = React.useCallback((days) => {
     const currentLength = fields.length;
     
     if (currentLength === days) {
-      return; // No change needed
+      return;
     }
     
     if (currentLength > days) {
-      // Remove extra days
       for (let i = currentLength - 1; i >= days; i--) {
         remove(i);
       }
     } else {
-      // Add missing days
       for (let i = currentLength; i < days; i++) {
         append({
           day: i + 1,
@@ -167,10 +175,10 @@ const CreateItinerary = () => {
   const onSubmit = async (data) => {
     try {
       setError('');
-      await createItineraryMutation.mutateAsync(data);
+      await updateItineraryMutation.mutateAsync(data);
     } catch (error) {
       console.error('Submit error:', error);
-      setError(error.response?.data?.error || 'Failed to create itinerary');
+      setError(error.response?.data?.error || 'Failed to update itinerary');
     }
   };
 
@@ -374,7 +382,6 @@ const CreateItinerary = () => {
                             variant="outlined"
                             size="small"
                             onClick={() => {
-                              // Auto-fill activity in the first empty field
                               const firstEmptyDay = fields.findIndex(day => 
                                 day.activities.some(act => !act.activity)
                               );
@@ -407,7 +414,6 @@ const CreateItinerary = () => {
                             size="small"
                             color="secondary"
                             onClick={() => {
-                              // Auto-fill location in the first empty field
                               const firstEmptyDay = fields.findIndex(day => 
                                 day.activities.some(act => !act.location)
                               );
@@ -517,7 +523,7 @@ const CreateItinerary = () => {
         return (
           <Box>
             <Typography variant="h6" sx={{ mb: 3 }}>
-              Review Your Itinerary
+              Review Your Changes
             </Typography>
             <Card>
               <CardContent>
@@ -581,7 +587,7 @@ const CreateItinerary = () => {
         const isDateValid = formData.startDate && new Date(formData.startDate) >= new Date().setHours(0, 0, 0, 0);
         return formData.title && formData.destination && formData.duration.days > 0 && isDateValid;
       case 1:
-        return true; // Daily plan is optional
+        return true;
       case 2:
         return true;
       default:
@@ -589,10 +595,27 @@ const CreateItinerary = () => {
     }
   };
 
+  // Check if user can edit this itinerary
+  const canEdit = user && (user._id === itinerary?.createdBy._id || user.role === 'admin');
+
+  if (itineraryLoading) {
+    return <LoadingSpinner message="Loading itinerary..." />;
+  }
+
+  if (!canEdit) {
+    return (
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Alert severity="error">
+          You don't have permission to edit this itinerary.
+        </Alert>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
       <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold' }}>
-        Create Trip Itinerary
+        Edit Trip Itinerary
       </Typography>
 
       <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
@@ -625,9 +648,9 @@ const CreateItinerary = () => {
                 <Button
                   type="submit"
                   variant="contained"
-                  disabled={createItineraryMutation.isLoading}
+                  disabled={updateItineraryMutation.isLoading}
                 >
-                  {createItineraryMutation.isLoading ? 'Creating...' : 'Create Itinerary'}
+                  {updateItineraryMutation.isLoading ? 'Updating...' : 'Update Itinerary'}
                 </Button>
               ) : (
                 <Button
@@ -646,4 +669,4 @@ const CreateItinerary = () => {
   );
 };
 
-export default CreateItinerary;
+export default EditItinerary;

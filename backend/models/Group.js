@@ -65,6 +65,37 @@ const groupSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  messages: [{
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    content: {
+      type: String,
+      required: true,
+      maxlength: [1000, 'Message cannot exceed 1000 characters']
+    },
+    messageType: {
+      type: String,
+      enum: ['text', 'image', 'system'],
+      default: 'text'
+    },
+    readBy: [{
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      readAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   tags: [String],
   isActive: {
     type: Boolean,

@@ -6,7 +6,7 @@ const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const router = express.Router();
 
 // Get admin dashboard stats
-router.get('/dashboard', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const stats = await Promise.all([
       DestinationGuide.countDocuments(),
@@ -23,18 +23,25 @@ router.get('/dashboard', authenticateToken, requireAdmin, async (req, res) => {
     ]);
 
     res.json({
-      stats: {
-        totalDestinations: stats[0],
-        totalItineraries: stats[1],
-        totalUsers: stats[2],
-        totalReviews: stats[3],
-        totalGroups: stats[4]
-      },
-      recentActivity: {
-        destinations: recentActivity[0],
-        itineraries: recentActivity[1],
-        users: recentActivity[2]
-      }
+      totalDestinations: stats[0],
+      totalItineraries: stats[1], 
+      totalUsers: stats[2],
+      totalReviews: stats[3],
+      totalGroups: stats[4],
+      recentActivity: [
+        ...recentActivity[0].map(item => ({
+          description: `New destination: ${item.title}`,
+          timestamp: item.createdAt
+        })),
+        ...recentActivity[1].map(item => ({
+          description: `New itinerary: ${item.title}`,
+          timestamp: item.createdAt
+        })),
+        ...recentActivity[2].map(item => ({
+          description: `New user: ${item.firstName} ${item.lastName}`,
+          timestamp: item.createdAt
+        }))
+      ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 10)
     });
   } catch (error) {
     console.error('Admin dashboard error:', error);

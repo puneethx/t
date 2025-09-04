@@ -5,6 +5,42 @@ const { authenticateToken, requireAdmin, optionalAuth } = require('../middleware
 
 const router = express.Router();
 
+// Create guest trip itinerary (for non-authenticated users)
+router.post('/guest', [
+  body('title').trim().isLength({ min: 1, max: 100 }),
+  body('destination').isString(),
+  body('duration.days').isInt({ min: 1 }),
+  body('startDate').isISO8601()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    // For guest users, we'll create a temporary itinerary without saving to database
+    // This is just for demonstration purposes
+    const guestItinerary = {
+      _id: 'guest-' + Date.now(),
+      ...req.body,
+      createdBy: null,
+      isPublic: false,
+      createdAt: new Date()
+    };
+
+    res.status(201).json({
+      message: 'Guest itinerary created successfully',
+      itinerary: guestItinerary
+    });
+  } catch (error) {
+    console.error('Create guest itinerary error:', error);
+    res.status(500).json({ error: 'Failed to create guest itinerary' });
+  }
+});
+
 // Create trip itinerary
 router.post('/', authenticateToken, [
   body('title').trim().isLength({ min: 1, max: 100 }),

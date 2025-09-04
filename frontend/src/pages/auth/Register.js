@@ -19,7 +19,9 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   
   const { register: registerUser, isAuthenticated } = useAuth();
@@ -44,6 +46,7 @@ const Register = () => {
   const onSubmit = async (data) => {
     setLoading(true);
     setError('');
+    setSuccess('');
 
     const result = await registerUser({
       email: data.email,
@@ -53,7 +56,10 @@ const Register = () => {
     });
 
     if (result.success) {
-      navigate('/', { replace: true });
+      setSuccess(result.message);
+      setTimeout(() => {
+        navigate('/login', { replace: true });
+      }, 2000);
     } else {
       setError(result.error);
     }
@@ -88,6 +94,12 @@ const Register = () => {
           {error && (
             <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
               {error}
+            </Alert>
+          )}
+
+          {success && (
+            <Alert severity="success" sx={{ width: '100%', mb: 2 }}>
+              {success}
             </Alert>
           )}
 
@@ -195,7 +207,7 @@ const Register = () => {
               fullWidth
               name="confirmPassword"
               label="Confirm Password"
-              type="password"
+              type={showConfirmPassword ? 'text' : 'password'}
               id="confirmPassword"
               autoComplete="new-password"
               {...register('confirmPassword', {
@@ -205,6 +217,19 @@ const Register = () => {
               })}
               error={!!errors.confirmPassword}
               helperText={errors.confirmPassword?.message}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle confirm password visibility"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      edge="end"
+                    >
+                      {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <Button
               type="submit"

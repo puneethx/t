@@ -23,12 +23,13 @@ import {
   Avatar,
   AvatarGroup,
 } from '@mui/material';
-import { Add, Group, Public, Lock, Person, LocationOn } from '@mui/icons-material';
+import { Add, Group, Public, Lock, Person, LocationOn, Chat } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useForm, Controller } from 'react-hook-form';
 import axios from '../../utils/api';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Groups = () => {
   const [tabValue, setTabValue] = useState(0);
@@ -37,6 +38,7 @@ const Groups = () => {
   const [inviteCode, setInviteCode] = useState('');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     defaultValues: {
@@ -60,6 +62,9 @@ const Groups = () => {
     async () => {
       const response = await axios.get('/api/v1/groups/my-groups');
       return response.data.groups;
+    },
+    {
+      enabled: !!user // Only fetch if user is authenticated
     }
   );
 
@@ -109,6 +114,12 @@ const Groups = () => {
     } else {
       setJoinDialogOpen(true);
     }
+  };
+
+  const isUserMemberOfGroup = (group) => {
+    return group.members?.some(member => 
+      (member.user?._id || member.user) === user?._id
+    );
   };
 
   const isLoading = loadingPublic || loadingMy;
@@ -214,8 +225,8 @@ const Groups = () => {
                       </Typography>
                       <AvatarGroup max={4} sx={{ justifyContent: 'flex-start' }}>
                         {group.members.map((member) => (
-                          <Avatar key={member.user._id} sx={{ width: 32, height: 32 }}>
-                            {member.user.firstName[0]}{member.user.lastName[0]}
+                          <Avatar key={member.user?._id || member._id} sx={{ width: 32, height: 32 }}>
+                            {member.user?.firstName?.[0] || member.firstName?.[0] || 'U'}{member.user?.lastName?.[0] || member.lastName?.[0] || 'U'}
                           </Avatar>
                         ))}
                       </AvatarGroup>
@@ -223,25 +234,38 @@ const Groups = () => {
                   )}
 
                   <Typography variant="body2" color="text.secondary">
-                    Created by {group.creator.firstName} {group.creator.lastName}
+                    Created by {group.creator?.firstName || 'Unknown'} {group.creator?.lastName || 'User'}
                   </Typography>
                 </CardContent>
 
                 <CardActions>
                   {tabValue === 0 ? (
-                    <Button
-                      size="small"
-                      onClick={() => handleJoinGroup(group._id, group.isPublic)}
-                      disabled={joinGroupMutation.isLoading}
-                    >
-                      {group.isPublic ? 'Join Group' : 'Request to Join'}
-                    </Button>
+                    isUserMemberOfGroup(group) ? (
+                      <Button
+                        size="small"
+                        startIcon={<Chat />}
+                        onClick={() => navigate(`/groups/${group._id}`)}
+                        variant="contained"
+                      >
+                        Group Chat
+                      </Button>
+                    ) : (
+                      <Button
+                        size="small"
+                        onClick={() => handleJoinGroup(group._id, group.isPublic)}
+                        disabled={joinGroupMutation.isLoading}
+                      >
+                        {group.isPublic ? 'Join Group' : 'Request to Join'}
+                      </Button>
+                    )
                   ) : (
                     <Button
                       size="small"
+                      startIcon={<Chat />}
                       onClick={() => navigate(`/groups/${group._id}`)}
+                      variant="contained"
                     >
-                      View Group
+                      Group Chat
                     </Button>
                   )}
                 </CardActions>

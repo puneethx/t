@@ -92,23 +92,45 @@ const ItineraryDetail = () => {
       onSuccess: () => {
         setIsFavorited(true);
         queryClient.invalidateQueries(['favorites']);
+      },
+      onError: (error) => {
+        console.error('Error adding favorite:', error);
+        if (error.response?.status === 400 && error.response?.data?.error === 'Item already in favorites') {
+          setIsFavorited(true);
+        }
       }
     }
   );
 
   const removeFavoriteMutation = useMutation(
     async () => {
-      const favorite = favorites.find(fav => 
+      // First try to find the favorite in the current favorites data
+      let favorite = favorites?.find(fav => 
         fav.resourceId._id === id && fav.resourceType === 'trip-itinerary'
       );
+      
+      // If not found in current data, fetch fresh favorites
+      if (!favorite) {
+        const response = await axios.get('/api/v1/favorites');
+        const freshFavorites = response.data.favorites;
+        favorite = freshFavorites.find(fav => 
+          fav.resourceId._id === id && fav.resourceType === 'trip-itinerary'
+        );
+      }
+      
       if (favorite) {
         await axios.delete(`/api/v1/favorites/${favorite._id}`);
+      } else {
+        throw new Error('Favorite not found');
       }
     },
     {
       onSuccess: () => {
         setIsFavorited(false);
         queryClient.invalidateQueries(['favorites']);
+      },
+      onError: (error) => {
+        console.error('Error removing favorite:', error);
       }
     }
   );
@@ -242,7 +264,21 @@ const ItineraryDetail = () => {
               </Button>
             </>
           )}
-          <IconButton color="primary">
+          <IconButton 
+            color="primary"
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({
+                  title: itinerary.title,
+                  text: `Check out this amazing trip itinerary: ${itinerary.title}`,
+                  url: window.location.href
+                });
+              } else {
+                navigator.clipboard.writeText(window.location.href);
+                alert('Link copied to clipboard!');
+              }
+            }}
+          >
             <Share />
           </IconButton>
         </Box>
@@ -283,7 +319,18 @@ const ItineraryDetail = () => {
                   {itinerary.dailyPlan.map((day, index) => (
                     <TimelineItem key={day.day}>
                       <TimelineSeparator>
-                        <TimelineDot color="primary">
+                        <TimelineDot 
+                          color="primary" 
+                          sx={{ 
+                            width: 40, 
+                            height: 40, 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            fontSize: '1rem',
+                            fontWeight: 'bold'
+                          }}
+                        >
                           {day.day}
                         </TimelineDot>
                         {index < itinerary.dailyPlan.length - 1 && <TimelineConnector />}
@@ -411,7 +458,7 @@ const ItineraryDetail = () => {
                         Budget
                       </Typography>
                       <Typography variant="body2">
-                        ${itinerary.budget.total}
+                        ₹{itinerary.budget.total}
                       </Typography>
                     </Box>
                   </Box>

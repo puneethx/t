@@ -5,6 +5,9 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+// Suppress deprecation warnings
+process.env.NODE_NO_WARNINGS = '1';
+
 const authRoutes = require('./routes/auth');
 const destinationRoutes = require('./routes/destinations');
 const itineraryRoutes = require('./routes/itineraries');

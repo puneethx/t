@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }) => {
     } else if (!state.token) {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, []);
+  }, [state.token, state.user]);
 
   const loadUser = async () => {
     try {
@@ -117,15 +117,11 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.post('/api/v1/auth/register', userData);
       
-      dispatch({
-        type: 'LOGIN_SUCCESS',
-        payload: {
-          user: response.data.user,
-          token: response.data.token,
-        },
-      });
-      
-      return { success: true };
+      // Don't auto-login after registration
+      return { 
+        success: true,
+        message: 'Registration successful! Please login with your credentials.'
+      };
     } catch (error) {
       return {
         success: false,
