@@ -20,9 +20,11 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from 'react-query';
 import axios from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import SearchSuggestions from '../components/search/SearchSuggestions';
 
 const Home = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -42,8 +44,33 @@ const Home = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      setShowSuggestions(false);
       navigate(`/destinations?search=${encodeURIComponent(searchQuery.trim())}`);
     }
+  };
+
+  const handleSearchInputChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    setShowSuggestions(value.trim().length > 0);
+  };
+
+  const handleSuggestionClick = (destination) => {
+    setShowSuggestions(false);
+    setSearchQuery('');
+  };
+
+  const handleSearchInputFocus = () => {
+    if (searchQuery.trim().length > 0) {
+      setShowSuggestions(true);
+    }
+  };
+
+  const handleSearchInputBlur = () => {
+    // Delay hiding suggestions to allow click events
+    setTimeout(() => {
+      setShowSuggestions(false);
+    }, 200);
   };
 
   const features = [
@@ -73,10 +100,11 @@ const Home = () => {
           color: 'white',
           py: { xs: 8, md: 12 },
           position: 'relative',
-          overflow: 'hidden',
+          overflow: 'visible',
+          zIndex: 1,
         }}
       >
-        <Container maxWidth="lg">
+        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 2 }}>
           <Grid container spacing={4} alignItems="center">
             <Grid item xs={12} md={6}>
               <Typography
@@ -108,40 +136,81 @@ const Home = () => {
                 }
               </Typography>
 
-              {/* Search Bar */}
-              <Paper
-                component="form"
-                onSubmit={handleSearch}
-                sx={{
-                  p: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  maxWidth: 500,
-                  mb: 3,
-                }}
-              >
-                <TextField
-                  fullWidth
-                  placeholder="Search destinations..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <Search color="action" />
-                      </InputAdornment>
-                    ),
-                    sx: { border: 'none', '& fieldset': { border: 'none' } },
+              {/* Popular Search Suggestions */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="body2" sx={{ mb: 1, opacity: 0.8 }}>
+                  Popular searches:
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {['beach destinations', 'cultural cities', 'adventure travel', 'romantic getaways', 'food destinations'].map((suggestion) => (
+                    <Button
+                      key={suggestion}
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        setSearchQuery(suggestion);
+                        navigate(`/destinations?search=${encodeURIComponent(suggestion)}`);
+                      }}
+                      sx={{
+                        color: 'white',
+                        borderColor: 'rgba(255,255,255,0.5)',
+                        '&:hover': {
+                          borderColor: 'white',
+                          backgroundColor: 'rgba(255,255,255,0.1)',
+                        },
+                      }}
+                    >
+                      {suggestion}
+                    </Button>
+                  ))}
+                </Box>
+              </Box>
+
+              {/* Search Bar with Suggestions */}
+              <Box sx={{ position: 'relative', maxWidth: 500, mb: 3, zIndex: 1000 }}>
+                <Paper
+                  component="form"
+                  onSubmit={handleSearch}
+                  sx={{
+                    p: 1,
+                    display: 'flex',
+                    alignItems: 'center',
                   }}
-                />
-                <Button
-                  type="submit"
-                  variant="contained"
-                  sx={{ ml: 1, px: 3 }}
                 >
-                  Search
-                </Button>
-              </Paper>
+                  <TextField
+                    fullWidth
+                    placeholder="Search destinations (e.g., 'beach destinations', 'mountain retreats')..."
+                    value={searchQuery}
+                    onChange={handleSearchInputChange}
+                    onFocus={handleSearchInputFocus}
+                    onBlur={handleSearchInputBlur}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Search color="action" />
+                        </InputAdornment>
+                      ),
+                      sx: { border: 'none', '& fieldset': { border: 'none' } },
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    sx={{ ml: 1, px: 3 }}
+                  >
+                    Search
+                  </Button>
+                </Paper>
+                
+                {/* Search Suggestions */}
+                {showSuggestions && (
+                  <SearchSuggestions
+                    searchQuery={searchQuery}
+                    onSuggestionClick={handleSuggestionClick}
+                    maxResults={5}
+                  />
+                )}
+              </Box>
 
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <Button
@@ -217,7 +286,7 @@ const Home = () => {
       </Box>
 
       {/* Features Section */}
-      <Container maxWidth="lg" sx={{ py: 8 }}>
+      <Container maxWidth="lg" sx={{ py: 8, position: 'relative', zIndex: 0 }}>
         <Typography
           variant="h2"
           textAlign="center"
@@ -263,7 +332,7 @@ const Home = () => {
 
       {/* Featured Destinations */}
       {featuredDestinations && featuredDestinations.length > 0 && (
-        <Box sx={{ bgcolor: 'background.default', py: 8 }}>
+        <Box sx={{ bgcolor: 'background.default', py: 8, position: 'relative', zIndex: 0 }}>
           <Container maxWidth="lg">
             <Typography
               variant="h2"
@@ -353,7 +422,7 @@ const Home = () => {
       )}
 
       {/* CTA Section */}
-      <Box sx={{ bgcolor: 'primary.main', color: 'white', py: 8 }}>
+      <Box sx={{ bgcolor: 'primary.main', color: 'white', py: 8, position: 'relative', zIndex: 0 }}>
         <Container maxWidth="md" sx={{ textAlign: 'center' }}>
           <Typography
             variant="h2"

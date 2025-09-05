@@ -24,12 +24,33 @@ router.get('/search', [
     let searchCriteria = { isPublished: true };
 
     if (searchQuery) {
-      searchCriteria.$text = { $search: searchQuery };
+      // Enhanced search with multiple criteria
+      const searchTerms = searchQuery.toLowerCase().split(' ').filter(term => term.length > 0);
+      
+      // Create search conditions for each term
+      const searchConditions = searchTerms.map(term => ({
+        $or: [
+          { title: { $regex: term, $options: 'i' } },
+          { summary: { $regex: term, $options: 'i' } },
+          { 'location.country': { $regex: term, $options: 'i' } },
+          { 'location.city': { $regex: term, $options: 'i' } },
+          { tags: { $regex: term, $options: 'i' } },
+          { 'content.attractions': { $regex: term, $options: 'i' } },
+          { 'recommendations.activities.category': { $regex: term, $options: 'i' } }
+        ]
+      }));
+
+      // If multiple search terms, use $and to require all terms to match
+      if (searchConditions.length > 1) {
+        searchCriteria.$and = searchConditions;
+      } else if (searchConditions.length === 1) {
+        searchCriteria.$or = searchConditions[0].$or;
+      }
     }
 
     const destinationGuides = await DestinationGuide.find(searchCriteria)
-      .select('title summary photos location averageRating totalReviews tags')
-      .sort(searchQuery ? { score: { $meta: 'textScore' } } : { createdAt: -1 })
+      .select('title summary photos location averageRating totalReviews tags content')
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -61,16 +82,42 @@ router.get('/search', [
 // Get all destination guides (public)
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, search } = req.query;
     const skip = (page - 1) * limit;
 
-    const destinationGuides = await DestinationGuide.find({ isPublished: true })
-      .select('title summary photos location averageRating totalReviews tags')
+    let searchCriteria = { isPublished: true };
+
+    if (search) {
+      // Enhanced search with multiple criteria
+      const searchTerms = search.toLowerCase().split(' ').filter(term => term.length > 0);
+      
+      const searchConditions = searchTerms.map(term => ({
+        $or: [
+          { title: { $regex: term, $options: 'i' } },
+          { summary: { $regex: term, $options: 'i' } },
+          { 'location.country': { $regex: term, $options: 'i' } },
+          { 'location.city': { $regex: term, $options: 'i' } },
+          { tags: { $regex: term, $options: 'i' } },
+          { 'content.attractions': { $regex: term, $options: 'i' } },
+          { 'recommendations.activities.category': { $regex: term, $options: 'i' } }
+        ]
+      }));
+
+      // If multiple search terms, use $and to require all terms to match
+      if (searchConditions.length > 1) {
+        searchCriteria.$and = searchConditions;
+      } else if (searchConditions.length === 1) {
+        searchCriteria.$or = searchConditions[0].$or;
+      }
+    }
+
+    const destinationGuides = await DestinationGuide.find(searchCriteria)
+      .select('title summary photos location averageRating totalReviews tags content')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
-    const total = await DestinationGuide.countDocuments({ isPublished: true });
+    const total = await DestinationGuide.countDocuments(searchCriteria);
 
     res.json({
       destinationGuides,

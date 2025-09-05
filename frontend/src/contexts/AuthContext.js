@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import axios from '../utils/api';
+import { guestStorage } from '../utils/guestStorage';
 
 const AuthContext = createContext();
 
@@ -70,21 +71,34 @@ export const AuthProvider = ({ children }) => {
 
   // Load user on app start
   useEffect(() => {
-    if (state.token && !state.user) {
-      loadUser();
-    } else if (!state.token) {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, [state.token, state.user]);
+    const initAuth = async () => {
+      if (state.token && !state.user) {
+        console.log('Loading user with token:', state.token.substring(0, 10) + '...');
+        await loadUser();
+      } else if (!state.token) {
+        console.log('No token found, setting loading to false');
+        dispatch({ type: 'SET_LOADING', payload: false });
+      } else if (state.user) {
+        console.log('User already loaded:', state.user.email);
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    };
+    
+    initAuth();
+  }, []);
 
   const loadUser = async () => {
     try {
+      console.log('Starting loadUser...');
+      dispatch({ type: 'SET_LOADING', payload: true });
       const response = await axios.get('/api/v1/auth/profile');
+      console.log('User profile loaded successfully:', response.data.user);
       dispatch({
         type: 'LOAD_USER_SUCCESS',
         payload: response.data.user,
       });
     } catch (error) {
+      console.error('Load user error:', error.response?.status, error.response?.data);
       dispatch({ type: 'LOAD_USER_FAIL' });
     }
   };
@@ -103,6 +117,20 @@ export const AuthProvider = ({ children }) => {
           token: response.data.token,
         },
       });
+      
+      // Handle guest itinerary transfer after successful login
+      await handleGuestItineraryTransfer();
+      
+      // Handle pending edit itinerary
+      const pendingEditItinerary = sessionStorage.getItem('pendingEditItinerary');
+      if (pendingEditItinerary) {
+        sessionStorage.removeItem('pendingEditItinerary');
+        return { 
+          success: true, 
+          redirectTo: '/itineraries/create',
+          pendingEditItinerary: JSON.parse(pendingEditItinerary)
+        };
+      }
       
       return { success: true };
     } catch (error) {
@@ -150,6 +178,27 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const handleGuestItineraryTransfer = async () => {
+    try {
+      const guestItineraries = guestStorage.getItineraries();
+      if (guestItineraries.length === 0) return;
+
+      // Transfer guest itineraries to user account
+      const transferResults = await guestStorage.transferToUserAccount(
+        async (itineraryData) => {
+          return await axios.post('/api/v1/trip-itineraries', itineraryData);
+        }
+      );
+
+      const successCount = transferResults.filter(result => result.success).length;
+      if (successCount > 0) {
+        console.log(`Successfully transferred ${successCount} guest itineraries to user account`);
+      }
+    } catch (error) {
+      console.error('Error transferring guest itineraries:', error);
+    }
+  };
+
   const value = {
     ...state,
     login,
@@ -157,6 +206,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     loadUser,
     updateProfile,
+    handleGuestItineraryTransfer,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

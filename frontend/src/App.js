@@ -14,6 +14,7 @@ import Itineraries from './pages/itineraries/Itineraries';
 import ItineraryDetail from './pages/itineraries/ItineraryDetail';
 import CreateItinerary from './pages/itineraries/CreateItinerary';
 import EditItinerary from './pages/itineraries/EditItinerary';
+import GuestItineraryDetail from './pages/itineraries/GuestItineraryDetail';
 import Profile from './pages/user/Profile';
 import Favorites from './pages/user/Favorites';
 import Groups from './pages/groups/Groups';
@@ -47,6 +48,7 @@ function App() {
           <Route path="/destinations/:id" element={<DestinationDetail />} />
           <Route path="/itineraries" element={<Itineraries />} />
           <Route path="/itineraries/:id" element={<ItineraryDetail />} />
+          <Route path="/itineraries/guest/:id" element={<GuestItineraryDetail />} />
 
           {/* Protected Routes */}
           <Route
@@ -65,14 +67,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/create-itinerary"
-            element={
-              <ProtectedRoute>
-                <CreateItinerary />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/create-itinerary" element={<CreateItinerary />} />
           <Route
             path="/itineraries/:id/edit"
             element={

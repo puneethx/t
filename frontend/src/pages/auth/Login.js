@@ -47,7 +47,18 @@ const Login = () => {
     const result = await login(data.email, data.password);
 
     if (result.success) {
-      navigate(from, { replace: true });
+      if (result.redirectTo) {
+        // Handle redirect to create itinerary with pending edit data
+        navigate(result.redirectTo, { 
+          replace: true,
+          state: { 
+            editMode: true, 
+            guestItinerary: result.pendingEditItinerary 
+          }
+        });
+      } else {
+        navigate(from, { replace: true });
+      }
     } else {
       setError(result.error);
     }

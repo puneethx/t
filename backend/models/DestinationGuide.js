@@ -24,10 +24,6 @@ const destinationGuideSchema = new mongoose.Schema({
     city: {
       type: String,
       required: [true, 'City is required']
-    },
-    coordinates: {
-      latitude: Number,
-      longitude: Number
     }
   },
   photos: [{

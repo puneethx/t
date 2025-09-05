@@ -51,7 +51,7 @@ const Destinations = () => {
       });
       
       if (searchQuery.trim()) {
-        params.append('query', searchQuery.trim());
+        params.append('search', searchQuery.trim());
       }
       
       if (filters.budgetRange) {
@@ -66,8 +66,7 @@ const Destinations = () => {
         params.append('tags', filters.tags.join(','));
       }
       
-      const endpoint = searchQuery.trim() ? '/api/v1/destination-guides/search' : '/api/v1/destination-guides';
-      const response = await axios.get(`${endpoint}?${params}`);
+      const response = await axios.get(`/api/v1/destination-guides?${params}`);
       return response.data;
     },
     {
